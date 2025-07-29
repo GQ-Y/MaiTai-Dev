@@ -1,0 +1,15 @@
+{
+  "name": "jileapp/smartscreen",
+  "version": "1.0.0",
+  "type": "mixed",
+  "description": "智慧屏管理插件，支持设备、内容、播放列表管理及WebSocket推送",
+  "author": [{ "name": "AI Assistant" }],
+  "composer": {
+    "require": [],
+    "psr-4": { "Plugin\\Jileapp\\Smartscreen\\": "src" },
+    "installScript": "Plugin\\Jileapp\\Smartscreen\\InstallScript",
+    "uninstallScript": "Plugin\\Jileapp\\Smartscreen\\UninstallScript",
+    "config": "Plugin\\Jileapp\\Smartscreen\\ConfigProvider"
+  },
+  "package": { "dependencies": [] }
+}

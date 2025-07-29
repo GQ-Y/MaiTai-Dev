@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 400" class="h-full w-full fill-current">
+  <!-- JileApp 极简LOGO - 580x400版本 -->
+  <g transform="translate(290,200) scale(14)">
+    <rect x="-7" y="-12" width="4" height="25" rx="2" fill="#2D3436"/>
+    <rect x="-7" y="9" width="15" height="4" rx="2" fill="#2D3436"/>
+    <rect x="13" y="-12" width="3" height="3" rx="1.5" fill="#15803d"/>
+  </g>
+</svg> 

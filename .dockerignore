@@ -1,0 +1,11 @@
+**
+!app/
+!bin/
+!config/
+!databases/
+!docker/
+!plugin/
+!storage/
+!composer.*
+!.env.example
+*/docker/servers/.rar

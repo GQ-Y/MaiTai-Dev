@@ -1,0 +1,122 @@
+smartscreen:
+  menu:
+    smartscreen: Smart Screen Management
+    device: Device Management
+    content: Content Management
+    playlist: Playlist Management
+    playlistContent: Playlist Content
+    control: Display Control
+    group: Group Management
+  device:
+    title: Device Management
+    subtitle: Manage all smart screen devices status and configuration
+    mac_address: MAC Address
+    device_name: Device Name
+    status: Device Status
+    is_online: Online Status
+    display_mode: Display Mode
+    current_content_id: Current Content ID
+    last_online_time: Last Online Time
+    created_by: Created By
+    updated_by: Updated By
+    activate: Activate Device
+    deactivate: Deactivate Device
+    activated: Device Activated
+    deactivated: Device Deactivated
+    online: Online
+    offline: Offline
+    active: Active
+    inactive: Inactive
+    mode_web: Web Mode
+    mode_image: Image Mode
+    mode_video: Video Mode
+  content:
+    title: Content Title
+    type: Content Type
+    content_url: Content URL
+    duration: Duration
+    sort_order: Sort Order
+  playlist:
+    name: Playlist Name
+    description: Description
+    is_default: Default Playlist
+    total_duration: Total Duration
+  control:
+    title: Display Control
+    subtitle: Real-time control of smart screen display content and modes
+    quick_control: Quick Control
+    device_status: Device Status Monitor
+    precise_control: Precise Control
+    activate_all: Activate All Devices
+    deactivate_all: Deactivate All Devices
+    refresh_all: Refresh All Devices
+    refresh_status: Refresh Status
+    push_content: Push Content
+    switch_mode: Switch Mode
+    broadcast_control: Broadcast Control
+    select_device: Device Selection
+    control_operation: Control Operations
+    selected_devices: Selected Devices
+    select_all: Select All Devices
+    clear_selection: Clear Selection
+    temp_push: Temporary Push
+    display_duration: Display Duration(s)
+    operation_result: Operation Result
+    success_count: Success Count
+    fail_count: Fail Count
+    total_count: Total Count
+    websocket_connected: Connected
+    websocket_disconnected: Disconnected
+  group:
+    title: Group Management
+    subtitle: Manage smart screen device groups, support grouping by organizational structure, functional areas and other dimensions
+    name: Group Name
+    namePlaceholder: Please enter group name
+    nameRequired: Group name is required
+    nameMaxLength: Group name cannot exceed 100 characters
+    description: Group Description
+    descriptionPlaceholder: Please enter group description
+    descriptionMaxLength: Group description cannot exceed 500 characters
+    color: Group Color
+    sortOrder: Sort Order
+    sortOrderPlaceholder: Please enter sort order
+    status: Group Status
+    statusPlaceholder: Please select group status
+    deviceCount: Device Count
+    createdAt: Created At
+    startDate: Start Date
+    endDate: End Date
+    viewStats: View Statistics
+    viewDevices: Manage Devices
+    enable: Enable
+    disable: Disable
+    manageDevicesTitle: Manage Group Devices
+    currentDevices: Current Devices
+    availableDevices: Available Devices
+    addDevices: Add Devices
+    removeDevices: Remove Devices
+    selectDevicesToAdd: Please select devices to add
+    selectDevicesToRemove: Please select devices to remove
+    addDevicesSuccess: Devices added successfully
+    removeDevicesSuccess: Devices removed successfully
+    noDevicesInGroup: No devices in this group
+    noAvailableDevices: No available devices
+    deviceName: Device Name
+    macAddress: MAC Address
+    onlineStatus: Online Status
+    addedAt: Added At
+    deviceList: Device List
+
+crud:
+  id: ID
+  created_at: Created At
+  updated_at: Updated At
+  selection: Selection
+  operation: Operations
+  edit: Edit
+  delete: Delete
+  add: Add
+  confirmDelete: Are you sure to delete this record?
+  deleteSuccess: Delete successfully
+  createSuccess: Create successfully
+  updateSuccess: Update successfully
