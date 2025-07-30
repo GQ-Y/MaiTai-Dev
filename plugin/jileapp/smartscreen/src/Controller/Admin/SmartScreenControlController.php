@@ -29,7 +29,7 @@ class SmartScreenControlController extends AbstractController
     }
 
     /**
-     * 推送内容
+     * 推送内容（批量设置显示内容）
      */
     #[PostMapping('push-content')]
     public function pushContent(): Result
@@ -37,6 +37,17 @@ class SmartScreenControlController extends AbstractController
         $data = $this->request->all();
         $result = $this->service->pushContent($data);
         return $this->success($result, '内容推送成功');
+    }
+
+    /**
+     * 批量设置播放列表
+     */
+    #[PostMapping('set-playlist')]
+    public function setPlaylist(): Result
+    {
+        $data = $this->request->all();
+        $result = $this->service->setPlaylist($data);
+        return $this->success($result, '播放列表设置成功');
     }
 
     /**

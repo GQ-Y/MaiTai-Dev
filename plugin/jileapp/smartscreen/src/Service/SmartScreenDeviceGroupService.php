@@ -305,16 +305,20 @@ class SmartScreenDeviceGroupService extends IService
 
         foreach ($devices as $device) {
             try {
-                // 调用设备服务设置内容
+                // 调用设备服务设置内容，并同时更新播放策略为"直接内容优先"(2)
                 $deviceService = \Hyperf\Context\ApplicationContext::getContainer()->get(\Plugin\Jileapp\Smartscreen\Service\SmartScreenDeviceService::class);
                 $result = $deviceService->setDeviceContent($device['id'], $contentId);
+                
+                // 更新播放策略为"直接内容优先"(2)
+                $this->deviceRepository->updateById($device['id'], ['display_mode' => 2]);
                 
                 // 新增：推送 content_response 消息
                 $mac = strtolower($device['mac_address']);
                 // 通过设备服务提供的接口获取内容
                 $directContent = $deviceService->getDeviceDirectContent($device['id']);
                 $playlistContents = $deviceService->getDeviceAllPlaylistContents($device['id']);
-                $displayMode = $deviceService->getDeviceDisplayMode($device['id']);
+                // 更新后的播放模式
+                $displayMode = 2; 
                 $displayModes = [1=>'播放列表优先',2=>'直接内容优先',3=>'仅播放列表',4=>'仅直接内容'];
                 $displayModeName = $displayModes[$displayMode] ?? '未知策略';
                 $primaryContents = [];
@@ -352,10 +356,12 @@ class SmartScreenDeviceGroupService extends IService
                 if ($result) {
                     // 检查WebSocket推送状态
                     $wsStatus = 'unknown';
-                    if (\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$server && 
-                        \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$deviceTable) {
+                    $server = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getServer();
+                    $deviceTable = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getDeviceTable();
+                    
+                    if ($server && $deviceTable) {
                         $mac = strtolower($device['mac_address']);
-                        if (\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$deviceTable->exist($mac)) {
+                        if ($deviceTable->exist($mac)) {
                             $wsStatus = 'pushed';
                         } else {
                             $wsStatus = 'offline';
@@ -446,15 +452,19 @@ class SmartScreenDeviceGroupService extends IService
 
         foreach ($devices as $device) {
             try {
-                // 调用设备服务设置播放列表
+                // 调用设备服务设置播放列表，并同时更新播放策略为"播放列表优先"(1)
                 $deviceService = \Hyperf\Context\ApplicationContext::getContainer()->get(\Plugin\Jileapp\Smartscreen\Service\SmartScreenDeviceService::class);
                 $result = $deviceService->setDevicePlaylist($device['id'], $playlistIds);
+                
+                // 更新播放策略为"播放列表优先"(1)
+                $this->deviceRepository->updateById($device['id'], ['display_mode' => 1]);
                 
                 // 新增：推送 content_response 消息
                 $mac = strtolower($device['mac_address']);
                 $directContent = $deviceService->getDeviceDirectContent($device['id']);
                 $playlistContents = $deviceService->getDeviceAllPlaylistContents($device['id']);
-                $displayMode = $deviceService->getDeviceDisplayMode($device['id']);
+                // 更新后的播放模式
+                $displayMode = 1;
                 $displayModes = [1=>'播放列表优先',2=>'直接内容优先',3=>'仅播放列表',4=>'仅直接内容'];
                 $displayModeName = $displayModes[$displayMode] ?? '未知策略';
                 $primaryContents = [];
@@ -492,10 +502,12 @@ class SmartScreenDeviceGroupService extends IService
                 if ($result) {
                     // 检查WebSocket推送状态
                     $wsStatus = 'unknown';
-                    if (\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$server && 
-                        \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$deviceTable) {
+                    $server = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getServer();
+                    $deviceTable = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getDeviceTable();
+                    
+                    if ($server && $deviceTable) {
                         $mac = strtolower($device['mac_address']);
-                        if (\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::$deviceTable->exist($mac)) {
+                        if ($deviceTable->exist($mac)) {
                             $wsStatus = 'pushed';
                         } else {
                             $wsStatus = 'offline';

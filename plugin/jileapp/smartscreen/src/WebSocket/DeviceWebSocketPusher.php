@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Plugin\Jileapp\Smartscreen\WebSocket;
 
+use Hyperf\WebSocketServer\ServerFactory;
+
 /**
  * WebSocket推送服务，支持设备激活/禁用状态变更实时推送。
  * 仅适用于单进程/单实例场景，分布式需用Redis等IPC。
@@ -23,6 +25,47 @@ class DeviceWebSocketPusher
     public static ?\Swoole\Table $deviceTable = null;
 
     /**
+     * 获取WebSocket服务器实例
+     * @return \Swoole\WebSocket\Server|null
+     */
+    public static function getServer(): ?\Swoole\WebSocket\Server
+    {
+        // 如果静态属性为空，尝试从容器获取
+        if (self::$server === null) {
+            try {
+                $container = \Hyperf\Context\ApplicationContext::getContainer();
+                if ($container->has(ServerFactory::class)) {
+                    $serverFactory = $container->get(ServerFactory::class);
+                    self::$server = $serverFactory->getServer();
+                }
+            } catch (\Exception $e) {
+                // 忽略异常，保持返回null
+            }
+        }
+        
+        return self::$server;
+    }
+
+    /**
+     * 获取设备内存表
+     * @return \Swoole\Table|null
+     */
+    public static function getDeviceTable(): ?\Swoole\Table
+    {
+        // 如果静态属性为空，尝试从DeviceWebSocketHandler获取
+        if (self::$deviceTable === null) {
+            try {
+                // 确保内存表已初始化
+                \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::initTable();
+            } catch (\Exception $e) {
+                // 忽略异常
+            }
+        }
+        
+        return self::$deviceTable;
+    }
+
+    /**
      * 推送设备激活/禁用状态
      * @param string $mac
      * @param int $active 1=激活 0=禁用
@@ -31,23 +74,26 @@ class DeviceWebSocketPusher
      */
     public static function pushActiveStatus(string $mac, int $active, string $msg = ''): bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'active_status',
                 'active' => $active,
                 'msg' => $msg ?: ($active ? '设备已激活' : '设备已禁用'),
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             // 同步内存表状态
-            self::$deviceTable->set($mac, ['active' => $active]);
+            $deviceTable->set($mac, ['active' => $active]);
             return true;
         }
         return false;
@@ -61,15 +107,18 @@ class DeviceWebSocketPusher
      */
     public static function pushContent(string $mac, array $content): bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'push_content',
                 'data' => [
@@ -81,7 +130,7 @@ class DeviceWebSocketPusher
                     'thumbnail' => $content['thumbnail'] ?? '',
                 ],
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             return true;
         }
         return false;
@@ -95,15 +144,18 @@ class DeviceWebSocketPusher
      */
     public static function pushDisplayModeChange(string $mac, int $displayMode): bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $modeNames = [
                 1 => '播放列表优先',
                 2 => '直接内容优先',
@@ -115,7 +167,7 @@ class DeviceWebSocketPusher
                 'display_mode' => $displayMode,
                 'mode_name' => $modeNames[$displayMode] ?? '未知模式',
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             return true;
         }
         return false;
@@ -130,15 +182,18 @@ class DeviceWebSocketPusher
      */
     public static function pushTempContent(string $mac, array $content, int $duration = 0): bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'temp_content',
                 'data' => [
@@ -151,7 +206,7 @@ class DeviceWebSocketPusher
                     'is_temp' => true,
                 ],
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             return true;
         }
         return false;
@@ -166,22 +221,25 @@ class DeviceWebSocketPusher
      */
     public static function pushBatchControl(string $mac, string $action, string $message = ''): bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'batch_control',
                 'action' => $action,
                 'message' => $message,
                 'timestamp' => time(),
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             return true;
         }
         return false;
@@ -196,22 +254,55 @@ class DeviceWebSocketPusher
      */
     public static function pushContentResponse(string $mac, array $contentResponseData, string $msg = '批量内容下发') : bool
     {
-        if (!self::$server || !self::$deviceTable) {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
             return false;
         }
         $mac = strtolower($mac);
-        if (!self::$deviceTable->exist($mac)) {
+        if (!$deviceTable->exist($mac)) {
             return false;
         }
-        $fd = self::$deviceTable->get($mac, 'fd');
-        if ($fd && self::$server->isEstablished($fd)) {
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'content_response',
                 'success' => true,
                 'msg' => $msg,
                 'data' => $contentResponseData
             ];
-            self::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 推送播放列表到设备
+     * @param string $mac 设备MAC地址
+     * @param array $playlist 播放列表内容
+     * @return bool
+     */
+    public static function pushPlaylist(string $mac, array $playlist): bool
+    {
+        $server = self::getServer();
+        $deviceTable = self::getDeviceTable();
+        
+        if (!$server || !$deviceTable) {
+            return false;
+        }
+        $mac = strtolower($mac);
+        if (!$deviceTable->exist($mac)) {
+            return false;
+        }
+        $fd = $deviceTable->get($mac, 'fd');
+        if ($fd && $server->isEstablished($fd)) {
+            $data = [
+                'type' => 'playlist_update',
+                'data' => $playlist,
+            ];
+            $server->push($fd, json_encode($data));
             return true;
         }
         return false;

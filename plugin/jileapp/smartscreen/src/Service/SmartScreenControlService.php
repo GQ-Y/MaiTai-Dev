@@ -96,13 +96,12 @@ class SmartScreenControlService
     }
 
     /**
-     * 推送内容
+     * 推送内容（批量设置显示内容）
      */
     public function pushContent(array $params): array
     {
         $deviceIds = $params['device_ids'] ?? [];
         $contentId = (int)($params['content_id'] ?? 0);
-        $isTemp = (bool)($params['is_temp'] ?? false);
         $duration = (int)($params['duration'] ?? 0);
 
         if (!$contentId) {
@@ -115,17 +114,15 @@ class SmartScreenControlService
             throw new BusinessException(ResultCode::FAIL, '内容不存在或已禁用');
         }
 
-        // 如果设备ID为空，则获取所有在线设备
+        // 如果设备ID为空，则获取所有设备（不再判断是否在线）
         if (empty($deviceIds)) {
             $devices = $this->deviceRepository->getModel()
                 ->where('status', 1)
-                ->where('is_online', 1)
                 ->get();
         } else {
             $devices = $this->deviceRepository->getModel()
                 ->whereIn('id', $deviceIds)
                 ->where('status', 1)
-                ->where('is_online', 1)
                 ->get();
         }
 
@@ -135,25 +132,23 @@ class SmartScreenControlService
 
         foreach ($devices as $device) {
             try {
-                // 如果不是临时推送，更新设备的当前内容
-                if (!$isTemp) {
-                    $this->deviceRepository->updateById($device->id, [
-                        'current_content_id' => $contentId
-                    ]);
-                }
+                // 更新设备的当前内容，并设置播放策略为"直接内容优先"(2)
+                $this->deviceRepository->updateById($device->id, [
+                    'current_content_id' => $contentId,
+                    'display_mode' => 2
+                ]);
 
-                // 准备推送内容
+                // 准备推送内容（不再包含is_temp参数）
                 $pushContent = [
                     'id' => $content->id,
                     'title' => $content->title,
                     'content_type' => $content->content_type,
                     'content_url' => $content->content_url,
                     'thumbnail' => $content->thumbnail,
-                    'duration' => $duration > 0 ? $duration : $content->duration,
-                    'is_temp' => $isTemp
+                    'duration' => $duration > 0 ? $duration : $content->duration
                 ];
 
-                // 推送内容
+                // 直接推送内容（不再判断websocket是否在线）
                 $pushResult = DeviceWebSocketPusher::pushContent($device->mac_address, $pushContent);
                 
                 $results[] = [
@@ -182,7 +177,6 @@ class SmartScreenControlService
             'content_id' => $contentId,
             'content_title' => $content->title,
             'device_count' => count($devices),
-            'is_temp' => $isTemp,
             'duration' => $duration,
             'success_count' => $successCount,
             'fail_count' => $failCount
@@ -197,6 +191,114 @@ class SmartScreenControlService
                 'title' => $content->title,
                 'content_type' => $content->content_type
             ],
+            'results' => $results
+        ];
+    }
+
+    /**
+     * 批量设置播放列表
+     */
+    public function setPlaylist(array $params): array
+    {
+        $deviceIds = $params['device_ids'] ?? [];
+        $playlistIds = $params['playlist_ids'] ?? [];
+
+        // 如果设备ID为空，则获取所有设备
+        if (empty($deviceIds)) {
+            $devices = $this->deviceRepository->getModel()
+                ->where('status', 1)
+                ->get();
+        } else {
+            $devices = $this->deviceRepository->getModel()
+                ->whereIn('id', $deviceIds)
+                ->where('status', 1)
+                ->get();
+        }
+
+        $successCount = 0;
+        $failCount = 0;
+        $results = [];
+
+        foreach ($devices as $device) {
+            try {
+                // 更新设备的播放列表，并设置播放策略为"播放列表优先"(1)
+                $this->deviceRepository->setDevicePlaylist($device->id, $playlistIds);
+                $this->deviceRepository->updateById($device->id, ['display_mode' => 1]);
+
+                // 获取设备详细信息用于推送
+                $deviceService = \Hyperf\Context\ApplicationContext::getContainer()->get(\Plugin\Jileapp\Smartscreen\Service\SmartScreenDeviceService::class);
+                $directContent = $deviceService->getDeviceDirectContent($device->id);
+                $playlistContents = $deviceService->getDeviceAllPlaylistContents($device->id);
+                // 更新后的播放模式
+                $displayMode = 1;
+                $displayModes = [1=>'播放列表优先',2=>'直接内容优先',3=>'仅播放列表',4=>'仅直接内容'];
+                $displayModeName = $displayModes[$displayMode] ?? '未知策略';
+                $primaryContents = [];
+                $secondaryContents = [];
+                switch ($displayMode) {
+                    case 1:
+                        $primaryContents = $playlistContents;
+                        if ($directContent) $secondaryContents = [$directContent];
+                        break;
+                    case 2:
+                        if ($directContent) $primaryContents = [$directContent];
+                        $secondaryContents = $playlistContents;
+                        break;
+                    case 3:
+                        $primaryContents = $playlistContents;
+                        break;
+                    case 4:
+                        if ($directContent) $primaryContents = [$directContent];
+                        break;
+                }
+                $contentResponseData = [
+                    'device_id' => $device->id,
+                    'display_mode' => $displayMode,
+                    'display_mode_name' => $displayModeName,
+                    'direct_content' => $directContent,
+                    'playlist_contents' => $playlistContents,
+                    'has_direct_content' => !empty($directContent),
+                    'has_playlist_contents' => !empty($playlistContents),
+                    'primary_contents' => $primaryContents,
+                    'secondary_contents' => $secondaryContents,
+                    'total_contents' => count($primaryContents) + count($secondaryContents),
+                ];
+                
+                // 推送设备完整配置（直接推送，不再判断websocket是否在线）
+                $pushResult = DeviceWebSocketPusher::pushContentResponse($device->mac_address, $contentResponseData, '批量设置播放列表');
+
+                $results[] = [
+                    'device_id' => $device->id,
+                    'device_name' => $device->device_name,
+                    'mac_address' => $device->mac_address,
+                    'push_result' => $pushResult,
+                    'status' => 'success'
+                ];
+                $successCount++;
+            } catch (\Exception $e) {
+                $results[] = [
+                    'device_id' => $device->id,
+                    'device_name' => $device->device_name,
+                    'mac_address' => $device->mac_address,
+                    'error' => $e->getMessage(),
+                    'status' => 'failed'
+                ];
+                $failCount++;
+            }
+        }
+
+        // 记录操作日志
+        $this->logOperation('set_playlist', [
+            'playlist_count' => count($playlistIds),
+            'device_count' => count($devices),
+            'success_count' => $successCount,
+            'fail_count' => $failCount
+        ]);
+
+        return [
+            'total' => count($devices),
+            'success_count' => $successCount,
+            'fail_count' => $failCount,
             'results' => $results
         ];
     }

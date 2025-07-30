@@ -170,7 +170,11 @@ class SmartScreenDeviceService extends IService
             throw new BusinessException(ResultCode::FAIL, '设备不存在');
         }
         
-        $result = $this->repository->setDeviceContent($deviceId, $contentId);
+        // 更新设备内容并设置播放策略为"直接内容优先"(2)
+        $result = $this->repository->updateById($deviceId, [
+            'current_content_id' => $contentId,
+            'display_mode' => 2
+        ]);
         
         // 设置内容后，根据播放策略推送相应内容
         if ($result) {
@@ -263,7 +267,9 @@ class SmartScreenDeviceService extends IService
             throw new BusinessException(ResultCode::FAIL, '设备不存在');
         }
         
+        // 更新播放列表并设置播放策略为"播放列表优先"(1)
         $result = $this->repository->setDevicePlaylist($deviceId, $playlistIds);
+        $this->repository->updateById($deviceId, ['display_mode' => 1]);
         
         // 设置播放列表后，根据播放策略推送相应内容
         if ($result) {
