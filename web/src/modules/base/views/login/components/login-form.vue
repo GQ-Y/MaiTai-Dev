@@ -28,7 +28,7 @@ const form = reactive<{
 }>({
   username: isProduction ? '' : '',
   password: isProduction ? '' : '',
-  code: isProduction ? '1234' : '1234',
+  code: isProduction ? '' : '',
 })
 
 function easyValidate(event: Event) {

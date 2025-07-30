@@ -1,16 +1,12 @@
 name: mineadmin
 
-volumes:
-  redis_data:
-  mysql_data:
-
 services:
   redis:
     image: redis:latest
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     command: redis-server --appendonly yes --requirepass 123456
     deploy:
       resources:
@@ -27,7 +23,7 @@ services:
   mysql:
     image: mysql:8.0
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./data/mysql:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "3306:3306"
@@ -51,9 +47,15 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     volumes:
-      - ../runtime/logs:/opt/www/runtime/logs
-      - ../storage/uploads:/opt/www/storage/uploads
+      - ../app:/opt/www/app
+      - ../bin:/opt/www/bin
+      - ../config:/opt/www/config
+      - ../docker:/opt/www/docker
       - ../plugin:/opt/www/plugin
+      - ../runtime:/opt/www/runtime
+      - ../storage:/opt/www/storage
+      - ../vendor:/opt/www/vendor
+      - ../.env:/opt/www/.env
     working_dir: /opt/www
     ports:
       - "9501:9501"   # HTTP服务端口

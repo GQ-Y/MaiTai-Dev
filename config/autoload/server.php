@@ -29,18 +29,20 @@ return [
                 Event::ON_REQUEST => [Hyperf\HttpServer\Server::class, 'onRequest'],
             ],
         ],
-        // [
-        //     'name' => 'ws',
-        //     'type' => Server::SERVER_WEBSOCKET,
-        //     'host' => '0.0.0.0',
-        //     'port' => 9502,
-        //     'sock_type' => \SWOOLE_SOCK_TCP,
-        //     'callbacks' => [
-        //         Event::ON_OPEN => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onOpen'],
-        //         Event::ON_MESSAGE => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onMessage'],
-        //         Event::ON_CLOSE => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onClose'],
-        //     ],
-        // ],
+        // 智慧屏插件Websocket服务监听
+        [
+            'name' => 'ws',
+            'type' => Server::SERVER_WEBSOCKET,
+            'host' => '0.0.0.0',
+            'port' => 9502,
+            'sock_type' => \SWOOLE_SOCK_TCP,
+            'callbacks' => [
+                Event::ON_OPEN => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onOpen'],
+                Event::ON_MESSAGE => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onMessage'],
+                Event::ON_CLOSE => [\Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketHandler::class, 'onClose'],
+            ],
+        ],
+        // 消息中心插件Websocket服务监听
         // [
         //     'name' => 'notification-ws',
         //     'type' => Server::SERVER_WEBSOCKET,

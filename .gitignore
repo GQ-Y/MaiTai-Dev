@@ -24,3 +24,5 @@ storage/swagger/http.json
 *.back
 web/=1.0.0
 docker/servers/*
+docker/data/*
+storage/uploads/*

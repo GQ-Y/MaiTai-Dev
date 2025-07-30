@@ -87,7 +87,7 @@ const loadSmartScreenStats = async () => {
     // 处理设备统计
     if (deviceRes.data?.list) {
       const devices = deviceRes.data.list
-      const onlineDevices = devices.filter((device: any) => device.status === 1)
+      const onlineDevices = devices.filter((device: any) => device.is_online === 1)
       systemStats.value[0].value = `${onlineDevices.length}/${devices.length}`
     }
 
