@@ -57,13 +57,29 @@ class DeviceWebSocketHandler implements OnMessageInterface, OnOpenInterface, OnC
         self::initTable();
         // 设置server实例到推送器
         DeviceWebSocketPusher::$server = $server;
+        // 尝试清理旧的 FD 映射（防止重连残留）
+        try {
+            if (isset($request->fd)) {
+                DeviceWebSocketPusher::clearConnectionByFd((int) $request->fd);
+            }
+        } catch (\Throwable $e) {
+            // 忽略
+        }
         
         if (DeviceWebSocketPusher::$deviceTable === null) {
             echo "Failed to initialize device table for connection: {$request->fd}\n";
-            $server->close($request->fd);
+            if (method_exists($server, 'close')) {
+                $server->close((int) $request->fd);
+            }
             return;
         }
         echo "WebSocket connection opened: {$request->fd}\n";
+        // 连接成功日志
+        try {
+            $ip = $request->server['remote_addr'] ?? 'unknown';
+            $ua = $request->header['user-agent'] ?? '';
+            echo sprintf("[WS] Connected fd=%d ip=%s ua=%s\n", (int) $request->fd, $ip, $ua);
+        } catch (\Throwable $e) {}
     }
 
     // 消息事件
@@ -159,6 +175,10 @@ class DeviceWebSocketHandler implements OnMessageInterface, OnOpenInterface, OnC
             'device_id' => $device->id,
             'last_heartbeat' => time(),
         ]);
+
+        // 记录连接到 Redis，供跨进程推送使用
+        DeviceWebSocketPusher::setConnection($mac, (int) $frame->fd);
+        DeviceWebSocketPusher::setHeartbeat($mac, time());
 
         // 返回注册结果
         $statusMsg = $device->status ? '设备已激活' : '设备未激活，请联系管理员激活';
@@ -327,15 +347,71 @@ class DeviceWebSocketHandler implements OnMessageInterface, OnOpenInterface, OnC
         }
         
         $mac = strtolower($data['mac']);
-        if (DeviceWebSocketPusher::$deviceTable->exist($mac)) {
-            DeviceWebSocketPusher::$deviceTable->set($mac, [
-                'last_heartbeat' => time(),
-            ]);
-            $active = DeviceWebSocketPusher::$deviceTable->get($mac, 'active');
-            $server->push($frame->fd, json_encode(['type' => 'heartbeat_ack', 'success' => true, 'active' => $active, 'msg' => '心跳成功']));
-        } else {
-            $server->push($frame->fd, json_encode(['type' => 'heartbeat_ack', 'success' => false, 'msg' => '设备未注册']));
+        $now = time();
+        if (! DeviceWebSocketPusher::$deviceTable->exist($mac)) {
+            // 未注册则自动注册到内存表与 Redis，尽量容错
+            try {
+                // 查询或自动创建设备
+                $device = $this->deviceRepository->getModel()
+                    ->where('mac_address', $mac)
+                    ->first();
+                if (! $device) {
+                    $device = $this->deviceRepository->create([
+                        'mac_address' => $mac,
+                        'device_name' => 'SmartScreen-' . strtoupper(substr($mac, -8)),
+                        'status' => 0,
+                        'is_online' => 1,
+                        'display_mode' => 1,
+                        'current_content_id' => null,
+                        'last_online_time' => date('Y-m-d H:i:s'),
+                    ]);
+                } else {
+                    // 标记在线与更新时间
+                    $this->deviceRepository->updateById($device->id, [
+                        'is_online' => 1,
+                        'last_online_time' => date('Y-m-d H:i:s'),
+                    ]);
+                }
+
+                // 写入内存表
+                DeviceWebSocketPusher::$deviceTable->set($mac, [
+                    'fd' => $frame->fd,
+                    'mac' => $mac,
+                    'active' => (int) $device->status,
+                    'device_id' => (int) $device->id,
+                    'last_heartbeat' => $now,
+                ]);
+                // 写入 Redis
+                DeviceWebSocketPusher::setConnection($mac, (int) $frame->fd);
+                DeviceWebSocketPusher::setHeartbeat($mac, $now);
+
+                $server->push($frame->fd, json_encode(['type' => 'heartbeat_ack', 'success' => true, 'active' => (int) $device->status, 'msg' => '心跳成功（自动注册）']));
+                return;
+            } catch (\Throwable $e) {
+                $server->push($frame->fd, json_encode(['type' => 'heartbeat_ack', 'success' => false, 'msg' => '心跳失败：' . $e->getMessage()]));
+                return;
+            }
         }
+
+        // 已注册设备：更新心跳与最近在线时间
+        DeviceWebSocketPusher::$deviceTable->set($mac, [
+            'last_heartbeat' => $now,
+        ]);
+        DeviceWebSocketPusher::setHeartbeat($mac, $now);
+
+        // 尝试更新 DB 最近在线时间（忽略异常）
+        try {
+            $row = DeviceWebSocketPusher::$deviceTable->get($mac);
+            if (! empty($row['device_id'])) {
+                $this->deviceRepository->updateById((int) $row['device_id'], [
+                    'is_online' => 1,
+                    'last_online_time' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } catch (\Throwable $e) {}
+
+        $active = DeviceWebSocketPusher::$deviceTable->get($mac, 'active');
+        $server->push($frame->fd, json_encode(['type' => 'heartbeat_ack', 'success' => true, 'active' => $active, 'msg' => '心跳成功']));
     }
 
     // 关闭事件
@@ -347,20 +423,36 @@ class DeviceWebSocketHandler implements OnMessageInterface, OnOpenInterface, OnC
             return;
         }
         
-        // 查找断开连接的设备并更新状态
-        foreach (DeviceWebSocketPusher::$deviceTable as $mac => $row) {
-            if ($row['fd'] === $fd) {
-                // 更新设备离线状态
+        // 先通过 Redis 快速定位 mac
+        $mac = DeviceWebSocketPusher::getMacByFd($fd);
+        if ($mac) {
+            $row = DeviceWebSocketPusher::$deviceTable->get($mac);
+            if ($row && isset($row['device_id'])) {
+                try {
+                    $this->deviceRepository->updateById((int) $row['device_id'], ['is_online' => 0]);
+                } catch (\Throwable $e) {
+                    echo "Error updating device offline status: {$e->getMessage()}\n";
+                }
+            }
+            DeviceWebSocketPusher::$deviceTable->del($mac);
+            DeviceWebSocketPusher::clearConnectionByMac($mac);
+            echo "Device disconnected: {$mac}\n";
+            return;
+        }
+
+        // 回退：遍历内存表匹配 fd
+        foreach (DeviceWebSocketPusher::$deviceTable as $tbMac => $row) {
+            if ((int) $row['fd'] === $fd) {
                 if (isset($row['device_id'])) {
                     try {
-                        $this->deviceRepository->updateById($row['device_id'], ['is_online' => 0]);
-                    } catch (\Exception $e) {
+                        $this->deviceRepository->updateById((int) $row['device_id'], ['is_online' => 0]);
+                    } catch (\Throwable $e) {
                         echo "Error updating device offline status: {$e->getMessage()}\n";
                     }
                 }
-                
-                DeviceWebSocketPusher::$deviceTable->del($mac);
-                echo "Device disconnected: {$mac}\n";
+                DeviceWebSocketPusher::$deviceTable->del($tbMac);
+                DeviceWebSocketPusher::clearConnectionByMac($tbMac);
+                echo "Device disconnected: {$tbMac}\n";
                 break;
             }
         }

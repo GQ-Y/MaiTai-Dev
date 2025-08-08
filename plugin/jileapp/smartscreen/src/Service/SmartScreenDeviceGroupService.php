@@ -354,21 +354,8 @@ class SmartScreenDeviceGroupService extends IService
                 \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::pushContentResponse($mac, $contentResponseData, '批量设置内容');
                 
                 if ($result) {
-                    // 检查WebSocket推送状态
-                    $wsStatus = 'unknown';
-                    $server = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getServer();
-                    $deviceTable = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getDeviceTable();
-                    
-                    if ($server && $deviceTable) {
-                        $mac = strtolower($device['mac_address']);
-                        if ($deviceTable->exist($mac)) {
-                            $wsStatus = 'pushed';
-                        } else {
-                            $wsStatus = 'offline';
-                        }
-                    } else {
-                        $wsStatus = 'service_unavailable';
-                    }
+                    // 依据 mac -> fd 的实时映射判定在线
+                    $wsStatus = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::isOnlineByMac($device['mac_address']) ? 'pushed' : 'offline';
                     
                     $results[] = [
                         'device_id' => $device['id'],
@@ -500,21 +487,7 @@ class SmartScreenDeviceGroupService extends IService
                 \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::pushContentResponse($mac, $contentResponseData, '批量设置播放列表');
                 
                 if ($result) {
-                    // 检查WebSocket推送状态
-                    $wsStatus = 'unknown';
-                    $server = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getServer();
-                    $deviceTable = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::getDeviceTable();
-                    
-                    if ($server && $deviceTable) {
-                        $mac = strtolower($device['mac_address']);
-                        if ($deviceTable->exist($mac)) {
-                            $wsStatus = 'pushed';
-                        } else {
-                            $wsStatus = 'offline';
-                        }
-                    } else {
-                        $wsStatus = 'service_unavailable';
-                    }
+                    $wsStatus = \Plugin\Jileapp\Smartscreen\WebSocket\DeviceWebSocketPusher::isOnlineByMac($device['mac_address']) ? 'pushed' : 'offline';
                     
                     $results[] = [
                         'device_id' => $device['id'],

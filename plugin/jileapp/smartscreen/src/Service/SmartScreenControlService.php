@@ -401,20 +401,12 @@ class SmartScreenControlService
     public function getDeviceStatus(array $params): array
     {
         $devices = $this->deviceRepository->getPageList($params);
-        
-        // 获取在线设备信息
-        $onlineDevices = [];
-        if (DeviceWebSocketPusher::$deviceTable) {
-            foreach (DeviceWebSocketPusher::$deviceTable as $mac => $info) {
-                $onlineDevices[$mac] = $info;
-            }
-        }
 
-        // 增强设备信息
+        // 增强设备信息（使用 Redis + 内存表双通道判断在线）
         foreach ($devices['list'] as &$device) {
             $mac = strtolower($device['mac_address']);
-            $device['websocket_status'] = isset($onlineDevices[$mac]) ? 'connected' : 'disconnected';
-            $device['last_heartbeat'] = $onlineDevices[$mac]['last_heartbeat'] ?? null;
+            $device['websocket_status'] = DeviceWebSocketPusher::isOnlineByMac($mac) ? 'connected' : 'disconnected';
+            $device['last_heartbeat'] = DeviceWebSocketPusher::getLastHeartbeat($mac);
             
             // 获取当前内容信息
             if ($device['current_content_id']) {
@@ -481,22 +473,15 @@ class SmartScreenControlService
      */
     private function pushRefreshCommand(string $mac, string $message = ''): bool
     {
-        if (!DeviceWebSocketPusher::$server || !DeviceWebSocketPusher::$deviceTable) {
-            return false;
-        }
-        
         $mac = strtolower($mac);
-        if (!DeviceWebSocketPusher::$deviceTable->exist($mac)) {
-            return false;
-        }
-        
-        $fd = DeviceWebSocketPusher::$deviceTable->get($mac, 'fd');
-        if ($fd && DeviceWebSocketPusher::$server->isEstablished($fd)) {
+        $server = DeviceWebSocketPusher::getServer();
+        $fd = DeviceWebSocketPusher::getFdByMac($mac);
+        if ($server && $fd && $server->isEstablished($fd)) {
             $data = [
                 'type' => 'refresh',
                 'message' => $message ?: '系统刷新'
             ];
-            DeviceWebSocketPusher::$server->push($fd, json_encode($data));
+            $server->push($fd, json_encode($data));
             return true;
         }
         

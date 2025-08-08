@@ -23,7 +23,9 @@ class ConfigProvider
             // 命令行工具配置
             'commands' => [],
             // 事件监听器配置
-            'listeners' => [],
+            'listeners' => [
+                \Plugin\Jileapp\Smartscreen\Listener\OnlineStatsTimer::class,
+            ],
             // 发布配置文件机制（如有默认配置文件可补充）
             'publish' => [
                 // 示例：如有默认配置文件可在publish目录下添加
